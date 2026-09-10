@@ -1,0 +1,100 @@
+/*
+ * Playmaker — 터미널 스킨의 구조 규칙.
+ *
+ * 팔레트·글꼴·효과 값은 플러그인이 문서에 주입하는 <style id="playmaker-terminal-vars">
+ * 에서 CSS 변수로 넘어온다. 이 파일에는 그 변수를 쓰는 골격만 둔다.
+ *
+ * 스코프 클래스 .pm-terminal 은 뷰 컨테이너(.workspace-leaf-content)에 붙는다.
+ * body 나 그 상위에는 절대 붙이지 않는다 — 인쇄·PDF 내보내기는 body 직하위에
+ * .print 컨테이너를 새로 만들어 다시 렌더하므로, 뷰에만 스코프를 두면 스킨이 새지 않는다.
+ */
+
+.pm-terminal {
+  /*
+   * body { color: var(--text-normal) } 의 상속을 끊는다.
+   * 편집 모드에는 글자색 규칙이 없어 body 에서 이미 계산된 색을 상속받기 때문에,
+   * 스코프 안에서 --text-normal 만 덮어써도 색이 바뀌지 않는다.
+   */
+  color: var(--text-normal);
+}
+
+/*
+ * 스캔라인 앵커.
+ * 마크다운 뷰의 .view-content 는 overflow:hidden 이라 스크롤하지 않는다.
+ * 다만 position:static 이므로 relative 를 줘야 오버레이가 이 요소를 기준으로 잡히고,
+ * 스크롤과 무관하게 고정된다. relative 를 빼면 .workspace-leaf-content 기준이 되어
+ * 뷰 헤더까지 덮는다.
+ */
+.pm-terminal .view-content {
+  position: relative;
+  animation: var(--pm-flicker, none);
+}
+
+.pm-terminal .view-content::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* .cm-scroller 가 z-index:0 으로 스택 컨텍스트를 만들기 때문에 위로 올려야 한다. */
+  z-index: 10;
+  /* 이게 없으면 클릭과 텍스트 선택이 전부 오버레이에 막힌다. */
+  pointer-events: none;
+  background: var(--pm-scanline, none);
+}
+
+/* 인광. 상속되는 속성이라 본문 루트에 한 번만 선언한다. */
+.pm-terminal .markdown-preview-view,
+.pm-terminal .cm-content {
+  text-shadow: var(--pm-text-shadow, none);
+}
+
+/*
+ * 커서 깜빡임.
+ * 깜빡임 애니메이션은 CodeMirror 가 .cm-cursorLayer 에 직접 넣는다.
+ * 같은 자리를 더 높은 특이성으로 덮어써서 끄거나 되살린다.
+ */
+.pm-terminal .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
+  animation: var(--pm-blink, steps(1) cm-blink 1.2s infinite);
+}
+
+/*
+ * 프롬프트 기호.
+ * ::before 로만 덧그리므로 노트 내용도, 복사한 텍스트도 바뀌지 않는다.
+ * 기본값은 빈 문자열이라 설정을 켜지 않으면 아무것도 그리지 않는다.
+ */
+.pm-terminal .cm-line::before,
+.pm-terminal .markdown-preview-sizer > div > p::before {
+  content: var(--pm-prompt, '');
+  color: var(--text-faint);
+}
+
+@keyframes pm-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.97;
+  }
+  9% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 1;
+  }
+  63% {
+    opacity: 0.94;
+  }
+  64% {
+    opacity: 1;
+  }
+}
+
+/* 움직임을 줄이도록 설정한 환경에서는 애니메이션을 모두 끈다. */
+@media (prefers-reduced-motion: reduce) {
+  .pm-terminal .view-content {
+    animation: none;
+  }
+  .pm-terminal .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
+    animation: none;
+  }
+}
