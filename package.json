@@ -1,0 +1,18 @@
+{
+  "name": "obsidian-playmaker",
+  "version": "0.1.0",
+  "description": "현재 열린 노트를 터미널 화면처럼 꾸미는 Obsidian 플러그인",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit && node esbuild.config.mjs production",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
+    "obsidian": "^1.13.1",
+    "typescript": "^5.9.2"
+  }
+}

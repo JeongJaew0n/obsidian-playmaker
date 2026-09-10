@@ -1,0 +1,9 @@
+{
+  "id": "playmaker",
+  "name": "Playmaker",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "현재 열린 노트를 터미널 화면처럼 꾸밉니다.",
+  "author": "jjw",
+  "isDesktopOnly": false
+}
