@@ -1,6 +1,10 @@
 /**
  * 터미널 팔레트와 Obsidian CSS 변수 매핑.
  *
+ * 이름 규칙: **id 는 영문, 화면에 보이는 label 은 장면이 떠오르는 별명**으로 쓴다.
+ * id 는 data.json 에 저장되는 값이라 바꾸면 기존 설정이 깨진다. 별명만 바꾼다.
+ * 'Ice' · 'Mono' 같은 이름은 무엇이 다른지 읽어서 알 수 없다는 지적을 받아 교체했다.
+ *
  * Obsidian 1.13.7 의 app.css 를 실측해 만든 목록이다. 주의할 점은
  * `--code-normal: var(--text-normal)` 처럼 **파생 변수는 상위 스코프(body)에서 이미
  * 계산되어 상속**되기 때문에, `--text-normal` 만 덮어써도 따라오지 않는다는 것이다.
@@ -28,7 +32,7 @@ export interface TerminalPalette {
 
 export const PRESETS: Record<PresetId, { label: string; palette: TerminalPalette }> = {
   green: {
-    label: 'Green (P1 인광)',
+    label: '새벽 세시 서버실',
     palette: {
       bg: '#080c08',
       bgAlt: '#0c120c',
@@ -40,7 +44,7 @@ export const PRESETS: Record<PresetId, { label: string; palette: TerminalPalette
     },
   },
   amber: {
-    label: 'Amber (호박색 CRT)',
+    label: '낡은 관제실',
     palette: {
       bg: '#0d0904',
       bgAlt: '#140e05',
@@ -52,7 +56,7 @@ export const PRESETS: Record<PresetId, { label: string; palette: TerminalPalette
     },
   },
   ice: {
-    label: 'Ice (청색 형광)',
+    label: '빙하 데이터센터',
     palette: {
       bg: '#05080f',
       bgAlt: '#0a0f18',
@@ -64,7 +68,7 @@ export const PRESETS: Record<PresetId, { label: string; palette: TerminalPalette
     },
   },
   mono: {
-    label: 'Mono (단색 흑백)',
+    label: '흔적 없는 침입',
     palette: {
       bg: '#0a0a0a',
       bgAlt: '#101010',
