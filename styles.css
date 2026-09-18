@@ -1,15 +1,20 @@
 /*
- * Playmaker — 터미널 스킨의 구조 규칙.
+ * Playmaker — 스킨 골격.
  *
- * 팔레트·글꼴·효과 값은 플러그인이 문서에 주입하는 <style id="playmaker-terminal-vars">
- * 에서 CSS 변수로 넘어온다. 이 파일에는 그 변수를 쓰는 골격만 둔다.
+ * 팔레트·글꼴·효과 값은 플러그인이 문서에 주입하는 <style id="playmaker-skin-vars">
+ * 에서 스킨별 CSS 변수로 넘어온다. 이 파일에는 그 변수를 쓰는 골격만 둔다.
  *
- * 스코프 클래스 .pm-terminal 은 뷰 컨테이너(.workspace-leaf-content)에 붙는다.
+ * 뷰 컨테이너(.workspace-leaf-content)에 클래스 두 개가 붙는다.
+ *   .pm-skin                 스킨이 붙었다는 표시. 아래 골격이 여기에 걸린다.
+ *   .pm-skin-<id>            그 스킨의 변수 블록과 전용 규칙
+ *
  * body 나 그 상위에는 절대 붙이지 않는다 — 인쇄·PDF 내보내기는 body 직하위에
  * .print 컨테이너를 새로 만들어 다시 렌더하므로, 뷰에만 스코프를 두면 스킨이 새지 않는다.
  */
 
-.pm-terminal {
+/* ══ 공통 골격 ═════════════════════════════════════════════ */
+
+.pm-skin {
   /*
    * body { color: var(--text-normal) } 의 상속을 끊는다.
    * 편집 모드에는 글자색 규칙이 없어 body 에서 이미 계산된 색을 상속받기 때문에,
@@ -19,18 +24,22 @@
 }
 
 /*
- * 스캔라인 앵커.
+ * 오버레이 앵커.
  * 마크다운 뷰의 .view-content 는 overflow:hidden 이라 스크롤하지 않는다.
  * 다만 position:static 이므로 relative 를 줘야 오버레이가 이 요소를 기준으로 잡히고,
  * 스크롤과 무관하게 고정된다. relative 를 빼면 .workspace-leaf-content 기준이 되어
  * 뷰 헤더까지 덮는다.
  */
-.pm-terminal .view-content {
+.pm-skin .view-content {
   position: relative;
   animation: var(--pm-flicker, none);
 }
 
-.pm-terminal .view-content::after {
+/*
+ * 질감 오버레이. 해커의 스캔라인과 편지지의 종이 결이 같은 자리를 쓴다.
+ * 스킨은 --pm-overlay 값만 바꾼다. 앵커·pointer-events·z-index 를 두 번 만들지 않는다.
+ */
+.pm-skin .view-content::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -38,12 +47,12 @@
   z-index: 10;
   /* 이게 없으면 클릭과 텍스트 선택이 전부 오버레이에 막힌다. */
   pointer-events: none;
-  background: var(--pm-scanline, none);
+  background: var(--pm-overlay, none);
 }
 
-/* 인광. 상속되는 속성이라 본문 루트에 한 번만 선언한다. */
-.pm-terminal .markdown-preview-view,
-.pm-terminal .cm-content {
+/* 발광. 상속되는 속성이라 본문 루트에 한 번만 선언한다. */
+.pm-skin .markdown-preview-view,
+.pm-skin .cm-content {
   text-shadow: var(--pm-text-shadow, none);
 }
 
@@ -52,20 +61,52 @@
  * 깜빡임 애니메이션은 CodeMirror 가 .cm-cursorLayer 에 직접 넣는다.
  * 같은 자리를 더 높은 특이성으로 덮어써서 끄거나 되살린다.
  */
-.pm-terminal .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
+.pm-skin .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
   animation: var(--pm-blink, steps(1) cm-blink 1.2s infinite);
 }
 
 /*
  * 프롬프트 기호.
  * ::before 로만 덧그리므로 노트 내용도, 복사한 텍스트도 바뀌지 않는다.
- * 기본값은 빈 문자열이라 설정을 켜지 않으면 아무것도 그리지 않는다.
+ * 기본값은 빈 문자열이라 쓰지 않는 스킨에서는 아무것도 그리지 않는다.
  */
-.pm-terminal .cm-line::before,
-.pm-terminal .markdown-preview-sizer > div > p::before {
+.pm-skin .cm-line::before,
+.pm-skin .markdown-preview-sizer > div > p::before {
   content: var(--pm-prompt, '');
   color: var(--text-faint);
 }
+
+/* ══ 오래된 편지지 ═════════════════════════════════════════ */
+
+/*
+ * 종이는 빛나지 않는다. 발광·애니메이션은 스킨 변수에서 이미 꺼져 나오고,
+ * 여기서는 읽는 리듬만 손본다. 줄을 조금 넓혀 장시간 읽기를 편하게 한다.
+ */
+.pm-skin-letterpress .markdown-preview-view,
+.pm-skin-letterpress .cm-content {
+  line-height: 1.75;
+}
+
+/* 인용은 손으로 옮겨 적은 것처럼 기울인다. */
+.pm-skin-letterpress .markdown-rendered blockquote,
+.pm-skin-letterpress .cm-blockquote {
+  font-style: italic;
+}
+
+/* 코드는 종이 위 도장처럼 옅은 테두리만 남긴다. */
+.pm-skin-letterpress .markdown-rendered pre,
+.pm-skin-letterpress .markdown-rendered code {
+  border: 1px solid var(--code-border-color);
+}
+
+/* 링크는 형광색 대신 밑줄로 알린다. */
+.pm-skin-letterpress .markdown-rendered a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* ══ 애니메이션 ════════════════════════════════════════════ */
 
 @keyframes pm-flicker {
   0%,
@@ -91,10 +132,10 @@
 
 /* 움직임을 줄이도록 설정한 환경에서는 애니메이션을 모두 끈다. */
 @media (prefers-reduced-motion: reduce) {
-  .pm-terminal .view-content {
+  .pm-skin .view-content {
     animation: none;
   }
-  .pm-terminal .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
+  .pm-skin .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
     animation: none;
   }
 }

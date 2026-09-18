@@ -1,29 +1,29 @@
 import { MarkdownView, Notice, Plugin, TFolder } from 'obsidian';
 import type { TAbstractFile } from 'obsidian';
-import { PRESETS } from './presets';
-import type { PresetId } from './presets';
-import { DEFAULT_SETTINGS, PlaymakerSettingTab } from './settings';
+import { SKINS, SKIN_IDS, getSkin } from './skins';
+import type { SkinId } from './skins';
+import { PlaymakerSettingTab, createDefaultSettings, migrateSettings } from './settings';
 import type { PlaymakerSettings } from './settings';
-import { TerminalSkinController } from './skin-controller';
+import { SkinController } from './skin-controller';
 
 export default class PlaymakerPlugin extends Plugin {
   // Obsidian 1.13.0 의 Plugin 에 settings?: unknown 이 생겨 override 가 필요하다.
-  override settings: PlaymakerSettings = { ...DEFAULT_SETTINGS };
+  override settings: PlaymakerSettings = createDefaultSettings();
 
-  private controller!: TerminalSkinController;
+  private controller!: SkinController;
   private statusBarEl: HTMLElement | null = null;
 
   override async onload(): Promise<void> {
     await this.loadSettings();
 
-    this.controller = new TerminalSkinController(this.app, () => this.settings);
+    this.controller = new SkinController(this.app, () => this.settings);
     this.controller.refreshStyle();
 
     this.registerCommands();
     this.registerWorkspaceEvents();
     this.registerVaultEvents();
 
-    this.addRibbonIcon('terminal', '터미널 스킨 토글 (현재 노트)', () => {
+    this.addRibbonIcon('palette', '스킨 켜기/끄기 (현재 노트)', () => {
       void this.toggleCurrent();
     });
 
@@ -43,11 +43,7 @@ export default class PlaymakerPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    const stored = (await this.loadData()) as Partial<PlaymakerSettings> | null;
-    this.settings = { ...DEFAULT_SETTINGS, ...(stored ?? {}) };
-    // 저장된 값이 손상된 경우에도 뒤쪽 로직이 안전하도록 최소한만 보정한다.
-    if (!Array.isArray(this.settings.skinnedPaths)) this.settings.skinnedPaths = [];
-    if (!(this.settings.preset in PRESETS)) this.settings.preset = DEFAULT_SETTINGS.preset;
+    this.settings = migrateSettings(await this.loadData());
   }
 
   /** 설정 저장 후 화면을 설정과 다시 일치시킨다. */
@@ -58,59 +54,135 @@ export default class PlaymakerPlugin extends Plugin {
     this.updateStatusBar();
   }
 
-  /** 현재 활성 노트의 스킨을 켜거나 끈다. */
+  /**
+   * 현재 노트의 스킨을 켜거나 끈다.
+   *
+   * 지금 실제로 스킨이 보이는 상태면 끄고, 아니면 활성 스킨을 입힌다.
+   * 전역이 켜진 상태에서 끄면 그 노트만 'none' 으로 빼둔다.
+   */
   async toggleCurrent(): Promise<void> {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    const path = view?.file?.path;
-    if (path === undefined) {
-      new Notice('Playmaker: 활성 노트가 없다.');
-      return;
-    }
+    const path = this.currentPath();
+    if (path === null) return;
 
-    const index = this.settings.skinnedPaths.indexOf(path);
-    if (index >= 0) {
-      this.settings.skinnedPaths.splice(index, 1);
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const isPreview = view?.getMode() === 'preview';
+    const showing = this.controller.resolveSkinFor(path, isPreview) !== null;
+
+    if (showing) {
+      if (this.settings.applyToAllNotes && this.settings.notes[path] === undefined) {
+        this.settings.notes[path] = 'none';
+      } else {
+        delete this.settings.notes[path];
+      }
     } else {
-      this.settings.skinnedPaths.push(path);
+      this.settings.notes[path] = this.settings.activeSkin;
     }
     await this.saveSettings();
   }
 
-  /** 스킨을 켜둔 노트 목록을 비운다. */
-  async clearAll(): Promise<void> {
-    if (this.settings.skinnedPaths.length === 0) return;
-    this.settings.skinnedPaths = [];
+  /** 현재 노트에 특정 스킨을 입힌다. 활성 스킨도 그것으로 바꾼다. */
+  async applySkinToCurrent(id: SkinId): Promise<void> {
+    const path = this.currentPath();
+    if (path === null) return;
+
+    this.settings.notes[path] = id;
+    this.settings.activeSkin = id;
     await this.saveSettings();
+    new Notice(`Playmaker: ${SKINS[id].label}`);
+  }
+
+  /** 노트별 지정을 모두 지운다. 전역 스위치는 건드리지 않는다. */
+  async clearAllNotes(): Promise<void> {
+    if (Object.keys(this.settings.notes).length === 0) return;
+    this.settings.notes = {};
+    await this.saveSettings();
+  }
+
+  private currentPath(): string | null {
+    const path = this.app.workspace.getActiveViewOfType(MarkdownView)?.file?.path;
+    if (path === undefined) {
+      new Notice('Playmaker: 활성 노트가 없다.');
+      return null;
+    }
+    return path;
   }
 
   private registerCommands(): void {
     this.addCommand({
       id: 'toggle-current-note',
-      name: '터미널 스킨 토글 (현재 노트)',
+      name: '스킨 켜기/끄기 (현재 노트)',
+      callback: () => void this.toggleCurrent(),
+    });
+
+    // 스킨마다 명령을 하나씩 둔다. 핫키를 따로 줄 수 있고, 명령 팔레트에서 이름으로 찾힌다.
+    for (const id of SKIN_IDS) {
+      this.addCommand({
+        id: `apply-skin-${id}`,
+        name: `이 노트에 '${SKINS[id].label}' 입히기`,
+        callback: () => void this.applySkinToCurrent(id),
+      });
+    }
+
+    this.addCommand({
+      id: 'exclude-current-note',
+      name: '이 노트만 맨얼굴로',
       callback: () => {
-        void this.toggleCurrent();
+        const path = this.currentPath();
+        if (path === null) return;
+        this.settings.notes[path] = 'none';
+        void this.saveSettings();
+      },
+    });
+
+    this.addCommand({
+      id: 'cycle-skin',
+      name: '스킨 바꾸기',
+      callback: () => {
+        const next = SKIN_IDS[(SKIN_IDS.indexOf(this.settings.activeSkin) + 1) % SKIN_IDS.length];
+        if (next === undefined) return;
+        this.settings.activeSkin = next;
+        new Notice(`Playmaker: ${SKINS[next].label}`);
+        void this.saveSettings();
+      },
+    });
+
+    this.addCommand({
+      id: 'cycle-variant',
+      name: '분위기 바꾸기',
+      callback: () => {
+        const skin = getSkin(this.settings.activeSkin);
+        const ids = Object.keys(skin.variants);
+        if (ids.length < 2) {
+          new Notice(`Playmaker: '${skin.label}' 은 분위기가 하나뿐이다.`);
+          return;
+        }
+        const current = this.settings.variants[skin.id] ?? skin.defaultVariant;
+        const next = ids[(ids.indexOf(current) + 1) % ids.length];
+        if (next === undefined) return;
+        this.settings.variants[skin.id] = next;
+        new Notice(`Playmaker: ${skin.variants[next]!.label}`);
+        void this.saveSettings();
+      },
+    });
+
+    this.addCommand({
+      id: 'toggle-global',
+      name: '모든 노트에 적용 켜기/끄기',
+      callback: () => {
+        this.settings.applyToAllNotes = !this.settings.applyToAllNotes;
+        new Notice(
+          this.settings.applyToAllNotes
+            ? `Playmaker: 모든 노트에 '${getSkin(this.settings.globalSkin).label}' 적용`
+            : 'Playmaker: 모든 노트 적용 해제',
+        );
+        void this.saveSettings();
       },
     });
 
     this.addCommand({
       id: 'clear-all',
-      name: '터미널 스킨 전체 해제',
-      callback: () => {
-        void this.clearAll();
-      },
-    });
-
-    this.addCommand({
-      id: 'cycle-preset',
-      name: '터미널 스킨 프리셋 순환',
-      callback: () => {
-        const ids = Object.keys(PRESETS) as PresetId[];
-        const next = ids[(ids.indexOf(this.settings.preset) + 1) % ids.length];
-        if (next === undefined) return;
-        this.settings.preset = next;
-        new Notice(`Playmaker: ${PRESETS[next].label}`);
-        void this.saveSettings();
-      },
+      name: '노트별 지정 전부 해제',
+      callback: () => void this.clearAllNotes(),
     });
   }
 
@@ -138,23 +210,26 @@ export default class PlaymakerPlugin extends Plugin {
     this.registerEvent(
       vault.on('rename', (file: TAbstractFile, oldPath: string) => {
         // 폴더 이름이 바뀌면 그 아래 경로를 접두사째 갱신한다.
-        // 파일 하나만 바뀐 경우는 정확히 일치하는 항목만 갱신한다.
         const isFolder = file instanceof TFolder;
+        const next: typeof this.settings.notes = {};
         let changed = false;
 
-        this.settings.skinnedPaths = this.settings.skinnedPaths.map((path) => {
+        for (const [path, skin] of Object.entries(this.settings.notes)) {
           if (path === oldPath) {
+            next[file.path] = skin;
             changed = true;
-            return file.path;
-          }
-          if (isFolder && path.startsWith(`${oldPath}/`)) {
+          } else if (isFolder && path.startsWith(`${oldPath}/`)) {
+            next[`${file.path}${path.slice(oldPath.length)}`] = skin;
             changed = true;
-            return `${file.path}${path.slice(oldPath.length)}`;
+          } else {
+            next[path] = skin;
           }
-          return path;
-        });
+        }
 
-        if (changed) void this.saveSettings();
+        if (changed) {
+          this.settings.notes = next;
+          void this.saveSettings();
+        }
       }),
     );
 
@@ -162,24 +237,23 @@ export default class PlaymakerPlugin extends Plugin {
       vault.on('delete', (file: TAbstractFile) => {
         // 유령 경로가 쌓이지 않게 지운다. 폴더면 그 아래 전부.
         const isFolder = file instanceof TFolder;
-        const before = this.settings.skinnedPaths.length;
+        let changed = false;
 
-        this.settings.skinnedPaths = this.settings.skinnedPaths.filter((path) => {
-          if (path === file.path) return false;
-          if (isFolder && path.startsWith(`${file.path}/`)) return false;
-          return true;
-        });
+        for (const path of Object.keys(this.settings.notes)) {
+          if (path === file.path || (isFolder && path.startsWith(`${file.path}/`))) {
+            delete this.settings.notes[path];
+            changed = true;
+          }
+        }
 
-        if (this.settings.skinnedPaths.length !== before) void this.saveSettings();
+        if (changed) void this.saveSettings();
       }),
     );
   }
 
   private updateStatusBar(): void {
     if (!this.statusBarEl) return;
-    const count = this.settings.skinnedPaths.length;
-    this.statusBarEl.setText(
-      this.settings.showStatusBar && count > 0 ? `TERM ${count}` : '',
-    );
+    const count = Object.keys(this.settings.notes).length;
+    this.statusBarEl.setText(this.settings.showStatusBar && count > 0 ? `SKIN ${count}` : '');
   }
 }
