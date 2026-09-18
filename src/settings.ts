@@ -58,7 +58,7 @@ export class PlaymakerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('분위기')
-      .setDesc("'기업을 해킹하는 해커' 스킨의 분위기를 고른다.")
+      .setDesc("'나 지금 해커' 스킨의 분위기를 고른다.")
       .addDropdown((dd) => {
         for (const [id, preset] of Object.entries(PRESETS)) {
           dd.addOption(id, preset.label);
